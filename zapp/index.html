@@ -1,0 +1,292 @@
+
+
+<!doctype html>
+<html>
+<head>
+
+<meta charset="utf-8" />
+<title>ZIM Multiuser Gallery</title>
+
+<!--
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ZIM Zapps
+Progressive Web App (PWA) tool output from
+https://zimjs.com/zapps 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-->
+
+<!-- ZIM PWA STEP 1 - MANIFEST -->
+<link rel="manifest" href="manifest.json">
+
+<!-- ZIM PWA STEP 2 - META -->
+<meta name="apple-mobile-web-app-title" content="multiuser interior">
+<meta name="theme-color" content="#333333">
+<meta name="msapplication-TileColor" content="#333333">
+
+<meta name="viewport" content="width=device-width, user-scalable=no">
+<link rel="apple-touch-icon" href="icons/icon_152.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="msapplication-TileImage" content="icons/icon_144.png">
+
+<!-- should have faveicons - see link below -->
+<!-- see https://www.favicon-generator.org/ -->
+
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="msapplication-starturl" content="./">
+
+<!-- ZIM PWA STEP 3 - SERVICE WORKER -->
+<script>
+	window.addEventListener("DOMContentLoaded", function () {
+		if (location.protocol === "https:" && "serviceWorker" in navigator) navigator.serviceWorker.register("./serviceworker.js");
+	});
+</script>
+
+<script type="module">
+    import zim from "https://zimjs.org/cdn/016/zim_socket2";
+
+var scaling = FIT; // this will resize to fit inside the screen dimensions
+var width = 1920;
+var height = 1080;
+var color ='#000000';
+var outerColor = '#000000';
+var path = "assets/";
+
+var frame = new Frame({scaling, width, height, color, outerColor, path, maxConnections:5});
+frame.on("ready", function() {
+
+	// ZIM PWA STEP 4 - ADD TO HOME SCREEN (A2HS)
+	// NOTE: new PWA() works with ZIM Cat 04 or beyond
+	// Message shows if only if running from mobile Browser
+	// See https://zimjs.com/docs.html?item=PWA for more options
+	// Will want to move this to bottom of app code
+
+	new PWA();
+    zog("ready from ZIM Frame"); 
+
+    var stage = frame.stage;
+    var stageW = frame.width;
+    var stageH = frame.height;
+
+	var Con = new Container(1920, 1080).center();
+
+
+    // tap on wall to cycle through colors
+	const wallColors = ["#E5E6EA", "#6A7071", "#DAD8D3",];
+	let wallNum = 3;
+	const wall = new Rectangle(stageW, stageH, wallColors[wallNum])
+		.addTo(Con)
+		.tap(() => {
+			wall.color = wallColors[(++wallNum)%wallColors.length];
+			stage.update();
+		});
+	// new Rectangle(stageW, stageH)
+	// 	.radialGradient(["rgba(0,0,0,.5)", "rgba(255,255,255,.5)"],[0,1], stageW/2,stageH/2,stageW, stageW/2,0,0)
+    //     .noMouse()
+	// 	.addTo();
+
+
+
+	// custom class to make a picture with changable border and image
+	// pressing on border cycles through borders
+	// pressing on pic cycles through pics
+	// these dispatch changeBorder and changePic events
+	class Picture extends Container {
+		constructor(pics, horizontal=true, borderNum=3, picNum=0) {
+			const borderSize = 50;
+			const borderColors = [black, dark, light, lighter];
+			if (horizontal) super(375+borderSize, 250+borderSize);
+			else super(250+borderSize, 375+borderSize);
+			if (Picture.num == null) Picture.num = 0;
+			const num = this.num = Picture.num++;
+			const that = this;
+			this.borderNum = borderNum;
+			this.picNum = picNum;
+
+			// const border = new Rectangle(this.width, this.height, borderColors[borderNum], grey, 8)
+			// 	.addTo(this)
+			// 	.sha("rgba(0,0,0,.2)", 3,3,10)
+			// 	.tap(() => {
+			// 		that.setBorder(++borderNum);
+			// 		that.dispatchEvent("changeBorder");
+			// 	});
+			// this.setBorder = function(num) {
+			// 	num = num%borderColors.length;
+			// 	border.color = borderColors[num];
+			// 	that.borderNum = borderNum = num;
+			// 	if (border.stage) border.stage.update();
+			// }
+
+			let pic = asset(pics[picNum]).center(this).tap(changePic);
+			function changePic() {
+				that.setPic(++picNum);
+				that.dispatchEvent("changePic");
+			}
+			this.setPic = function(num) {
+				num = num%pics.length;
+				pic.removeFrom();
+				pic.removeAllEventListeners(); // remove old add new tap below
+				pic = asset(pics[num]).center(that).tap(changePic);
+				picNum = num;
+				that.picNum = picNum;
+				pic.stage.update();
+			}
+		}
+	}
+
+
+	// create pics
+	const numPics = 5;
+	// const scale = 1;
+    const dragInfoH = {all:true, boundary:new Boundary(0,0,W,H)};
+	const dragInfoV = {all:true, boundary:new Boundary(0,0,W,H)};
+	
+	const p1 = new Picture(["sofa1.png", "sofa2.png", "sofa3.png"]).sca(1).drag(dragInfoH).bot();
+	const p2 = new Picture(["wallart1.png", "wallart2.png", "wallart3.png"]).sca(1).drag(dragInfoH);
+    const p3 = new Picture(["curtain1.png", "curtain2.png", "curtain3.png"], false).sca(1).drag(dragInfoH);
+    const p4 = new Picture(["lamp1.png", "lamp2.png", "lamp3.png"]).sca(1).drag(dragInfoH);
+	const p5 = new Picture(["floor1.png","floor2.png","floor3.png"]).sca(1).drag(dragInfoH);
+
+	// tile with unique true to not lose events
+	const tile = new Tile({
+		obj:[p1,p2,p3,p4,p5],
+        unique:true,
+		cols:numPics,
+		spacingH:80,
+		valign:CENTER
+	}).center(Con).mov(0,-40);
+
+    frame.madeWith().pos(40,40,RIGHT,BOTTOM,Con).tap(()=>{zgo("https://zimjs.com", "_blank");});
+
+    // hide content until socket connects
+    const overlay = new Rectangle(stageW, stageH, darker).addTo(Con);
+    const waiter = new Waiter({corner:5, backgroundColor:green}).show();
+
+
+
+	const socket = new Socket(zimSocketURL, "zimgallery");
+	socket.on("ready", ()=>{
+
+		const circle = new Circle(25, new RadialColor(["white", "green"], [0, 1], -10, -10, 0, 0, 0, 25))
+                .pos(10, 25, LEFT, BOTTOM)
+                .sha({ color: "rgba(0,0,0,0.5)", blur: 4, x: 2, y: 2 });
+
+            const num = new Label(socket.size + 1)
+                .centerReg()
+                .pos(25, 30, LEFT, BOTTOM);
+
+
+		const viewersLabel = new Label("Interior designers online, They work together.")
+                .alp(.7)
+                .centerReg()
+                .pos(70, 30, LEFT, BOTTOM);
+
+		// will set gallery using getLatestValue data from socket
+		setGallery();
+
+		// set events on gallery parts
+		tile.loop(pic=>{
+			pic.on("mousedown", e=>{
+				// handle layer order
+				let order = [];
+				tile.loop(pic=>{order.push(pic.num);});
+				socket.setProperty("order", order);
+			});
+			pic.on("pressmove", e=>{
+				let pic = e.currentTarget;
+				let obj = {};
+				obj["x"+pic.num] = pic.x;
+				obj["y"+pic.num] = pic.y;
+				socket.setProperties(obj);
+			});
+			pic.on("changeBorder", e=>{
+				let pic = e.currentTarget;
+				socket.setProperty("border"+pic.num, pic.borderNum);
+			});
+			pic.on("changePic", ()=>{
+				socket.setProperty("pic"+pic.num, pic.picNum);
+			});
+			wall.tap(() => {
+				if (socket) socket.setProperties({wallNum});
+			});
+		});
+
+        fadeOverlay();
+
+	});
+
+    function fadeOverlay() {
+        waiter.hide();
+        // fade in gallery
+        overlay.animate({
+            wait:.5,
+            props:{alpha:0},
+            time:1,
+            call:target=>{
+                target.removeFrom();
+            }
+        });
+    }
+
+	socket.on("data", data=>{setGallery(data);}); // will use updated data
+
+    socket.on("error", fadeOverlay); // just let people play with pictures
+
+	function setGallery(data) {
+
+		// PICS
+		// setting any pic border, num and position changes
+		// if we have data then use the data
+		// if we don't then use socket.getLatestValue()
+		// loop through each of the pics to get the data for each
+		// the matching pic will be tile.items[i] - the original order
+		// not tile.getChildAt(i) as that changes when drag sets child to top
+		loop(numPics, i=>{
+			let borderNum = data ? data["border"+i] : socket.getLatestValue("border"+i);
+			if (borderNum!=null) tile.items[i].setBorder(borderNum);
+
+			let picNum = data ? data["pic"+i] : socket.getLatestValue("pic"+i);
+			if (picNum!=null) tile.items[i].setPic(picNum);
+
+			let x = data ? data["x"+i] : socket.getLatestValue("x"+i);
+			if (x!=null) tile.items[i].x = x;
+
+			let y = data ? data["y"+i] : socket.getLatestValue("y"+i);
+			if (y!=null) tile.items[i].y = y;
+		});
+
+		// WALL
+		let wNum = data ? data["wallNum"] : socket.getLatestValue("wallNum");
+		if (wNum!=null) {
+			wallNum = wNum%wallColors.length;
+			wall.color = wallColors[wallNum];
+		}
+
+		// ORDER
+		let order = data ? data["order"] : socket.getLatestValue("order");
+		if (order!=null) loop(order, pic=>{tile.items[pic].top();});
+
+		stage.update();
+	}
+
+	new Label("ZIM - multiuser interior").pos(30,30,LEFT,TOP,Con).alp(.4);
+	new Label("multiuser drag to change place, tap to change style").sca(.7).alp(.3).pos(30,floor.height+30,LEFT,BOTTOM,Con);
+	
+	stage.update(); 
+
+
+}); // end of ready
+
+</script>
+
+
+
+
+
+</head>
+
+<body>
+
+</body>
+</html>
